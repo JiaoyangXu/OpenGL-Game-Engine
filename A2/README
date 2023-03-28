@@ -1,0 +1,12 @@
+Compilation:
+
+premake4 gmake
+make
+./A2
+
+- There is no change on the default premake4/make combination
+- Tested my assignment on gl02.student.cs in the CG lab.
+
+
+Manual:
+- All objectives are completed except for clipping

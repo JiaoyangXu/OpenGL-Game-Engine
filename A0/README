@@ -1,0 +1,13 @@
+Compilation:
+
+premake4 gmake
+make
+./A0
+
+- There is no change on the default premake4/make combination
+- Tested my assignment on gl41.student.cs in the CG lab.
+
+
+Manual:
+- The shortcut + and - that scales the triangle up and down are at a rate of 1.0f per click
+- All objectives are completed

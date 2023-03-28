@@ -1,0 +1,9 @@
+I ran this program on gl50
+
+Instruction to run the puppet:
+cd A4
+premake4 gmake
+make
+./A4 Assets/sample.lua
+
+I did not get hierarchical transformations working

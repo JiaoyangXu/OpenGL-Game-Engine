@@ -1,0 +1,7 @@
+I ran this program on gl39
+
+Instruction to run the puppet:
+cd A3
+premake4 gmake
+make
+./A3 Assets/puppet.lua
