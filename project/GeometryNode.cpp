@@ -55,7 +55,7 @@ void GeometryNode::render(const ShaderProgram & shader,
 
     //-- Now render the mesh:
     shader.enable();
-    glDrawArrays(GL_TRIANGLES, batchInfo.startIndex, batchInfo.numIndices);
+    glDrawArrays(GL_QUADS, batchInfo.startIndex, batchInfo.numIndices);
     shader.disable();
 
     //stack.pop_back();

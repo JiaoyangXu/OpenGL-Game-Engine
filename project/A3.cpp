@@ -178,8 +178,8 @@ void A3::enableVertexShaderInputSlots()
 		glEnableVertexAttribArray(m_normalAttribLocation);
 
 		// Enable the vextex shader attribute location for "uv" when rendering 
-		m_uvAttribLocation = m_shader.getAttribLocation("uv");
-		glEnableVertexAttribArray(m_uvAttribLocation);
+		// m_uvAttribLocation = m_shader.getAttribLocation("uv");
+		// glEnableVertexAttribArray(m_uvAttribLocation);
 
 		CHECK_GL_ERRORS;
 	}
@@ -279,8 +279,8 @@ void A3::mapVboDataToVertexShaderInputLocations()
 
 	// Tell GL how to map data from the vertex buffer "m_vbo_vertexUvs" into the
 	// "uv" vertex attribute location for any bound vertex shader program.
-	glBindBuffer(GL_ARRAY_BUFFER, m_vbo_vertexUvs);
-	glVertexAttribPointer(m_uvAttribLocation, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
+	// glBindBuffer(GL_ARRAY_BUFFER, m_vbo_vertexUvs);
+	// glVertexAttribPointer(m_uvAttribLocation, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
 
 	//-- Unbind target, and restore default values:
 	glBindBuffer(GL_ARRAY_BUFFER, 0);

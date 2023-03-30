@@ -4,6 +4,8 @@
 in vec3 position;
 in vec3 normal;
 
+in vec2 uv;
+
 struct LightSource {
     vec3 position;
     vec3 rgbIntensity;
@@ -26,6 +28,7 @@ uniform Material material;
 uniform vec3 ambientIntensity;
 
 out vec3 vcolour;
+out vec2 texture_uv;
 
 vec3 diffuseLighting(vec3 vertPosition, vec3 vertNormal) {
     // Direction from vertex to light source.
@@ -43,6 +46,7 @@ void main() {
 	vec4 pos4 = vec4(position, 1.0);
 
 	vcolour = diffuseLighting((ModelView * pos4).xyz, normalize(NormalMatrix * normal));
+    texture_uv = uv;
 	
 	gl_Position = Perspective * ModelView * pos4;
 }
