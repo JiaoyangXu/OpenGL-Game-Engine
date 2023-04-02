@@ -64,15 +64,15 @@ MeshConsolidator::MeshConsolidator(
 
 
 
-	//     if (numIndices != uvs.size()) {
-	// 	std::cout << "file name is " << objFile.c_str();
-	// 	std::cout << "position size is " << positions.size();
-	// 	std::cout << "normal size is " << normals.size();
-	// 	std::cout << "uv size is " << uvs.size();
+	    if (numIndices != uvs.size()) {
+		std::cout << "file name is " << objFile.c_str();
+		std::cout << "position size is " << positions.size();
+		std::cout << "normal size is " << normals.size();
+		std::cout << "uv size is " << uvs.size();
 
-	// 	    throw Exception("Error within MeshConsolidator: "
-	// 				"positions.size() != uvs.size()\n");
-	//     }
+		    throw Exception("Error within MeshConsolidator: "
+					"positions.size() != uvs.size()\n");
+	    }
 
 	    batchInfo.startIndex = indexOffset;
 	    batchInfo.numIndices = numIndices;

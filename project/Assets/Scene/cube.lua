@@ -6,7 +6,7 @@
 -- Create the top level root node named 'root'.
 rootNode = gr.node('root')
 
-cubeMesh2 = gr.mesh('cube', 'my_cube')
+cubeMesh2 = gr.mesh('Sphere', 'my_cube')
 cubeMesh2:scale(0.5, 0.5, 0.5)
 cubeMesh2:rotate('y', 45.0)
 cubeMesh2:translate(0.0, -0.5, -3.0)

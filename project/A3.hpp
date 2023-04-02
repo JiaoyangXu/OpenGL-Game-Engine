@@ -9,6 +9,7 @@
 
 #include "SceneNode.hpp"
 #include "JointNode.hpp"
+#include "Shadow.hpp"
 
 #include <glm/glm.hpp>
 #include <memory>
@@ -73,10 +74,16 @@ protected:
 
 	void initPerspectiveMatrix();
 	void uploadCommonSceneUniforms();
-	void renderSceneGraph(const SceneNode &node);
+	void renderSceneGraph(const SceneNode &node, const ShaderProgram& shader, bool is_shadow);
 	void renderArcCircle();
 
 	void uploadTexture();
+	void initShadowMap();
+	void ConfigureShaderAndMatrices();
+
+	void constructShadowMap();
+
+	void initFloor();
 
     // picking
     void start_picking();
@@ -101,7 +108,12 @@ protected:
 	GLint m_positionAttribLocation;
 	GLint m_normalAttribLocation;
 	GLint m_uvAttribLocation;
+	GLint m_shadow_positionAttribLocation;
 	ShaderProgram m_shader;
+
+	ShaderProgram shadow_shader;
+
+	ShaderProgram debugDepthQuad_shader;
 
 	//-- GL resources for trackball circle geometry:
 	GLuint m_vbo_arcCircle;
@@ -117,6 +129,17 @@ protected:
 	std::string m_luaSceneFile;
 
 	std::shared_ptr<SceneNode> m_rootNode;
+
+	Shadow m_shadow;
+
+	unsigned int depthMapFBO;
+
+	unsigned int planeVAO;
+
+	unsigned int texture_id;
+	unsigned int shadowMap_id;
+
+	glm::mat4 lightSpaceMatrix;
 
 
     // picking

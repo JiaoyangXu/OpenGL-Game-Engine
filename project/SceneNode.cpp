@@ -122,7 +122,8 @@ int SceneNode::totalSceneNodes() const {
 void SceneNode::render(const ShaderProgram & shader,
             BatchInfoMap & batchInfoMap,
             const glm::mat4 & viewMatrix,
-            std::vector<glm::mat4> & stack) {
+            std::vector<glm::mat4> & stack,
+		bool is_shadow) {
 
    // cout << "SceneNode::render" << endl;
 
@@ -133,7 +134,7 @@ void SceneNode::render(const ShaderProgram & shader,
         if (node->m_nodeType == NodeType::GeometryNode) {
             //cout << "SceneNode::children  " << endl;
         }
-        node->render(shader, batchInfoMap, viewMatrix, stack);
+        node->render(shader, batchInfoMap, viewMatrix, stack, is_shadow);
     }
     stack.pop_back();
 }

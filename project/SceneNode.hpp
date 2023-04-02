@@ -48,7 +48,8 @@ public:
     virtual void render(const ShaderProgram & shader,
                 BatchInfoMap & batchInfoMap,
                 const glm::mat4 & viewMatrix,
-                std::vector<glm::mat4> & stack);
+                std::vector<glm::mat4> & stack,
+                bool is_shadow);
 
 
 

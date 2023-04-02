@@ -14,6 +14,7 @@ uniform LightSource light;
 
 uniform mat4 ModelView;
 uniform mat4 Perspective;
+uniform mat4 lightSpaceMatrix;
 
 // Remember, this is transpose(inverse(ModelView)).  Normals should be
 // transformed using this matrix instead of the ModelView matrix.
@@ -27,8 +28,15 @@ uniform Material material;
 // Ambient light intensity for each RGB component.
 uniform vec3 ambientIntensity;
 
-out vec3 vcolour;
-out vec2 texture_uv;
+out VS_OUT {
+    vec3 vcolour;
+    vec2 texture_uv;
+    vec4 FragPosLightSpace;
+    vec3 lightPos;
+    vec3 FragPos;
+    vec3 Normal;
+} vs_out;
+
 
 vec3 diffuseLighting(vec3 vertPosition, vec3 vertNormal) {
     // Direction from vertex to light source.
@@ -45,8 +53,13 @@ vec3 diffuseLighting(vec3 vertPosition, vec3 vertNormal) {
 void main() {
 	vec4 pos4 = vec4(position, 1.0);
 
-	vcolour = diffuseLighting((ModelView * pos4).xyz, normalize(NormalMatrix * normal));
-    texture_uv = uv;
+	vs_out.vcolour = diffuseLighting((ModelView * pos4).xyz, normalize(NormalMatrix * normal));
+    vs_out.texture_uv = uv;
+
+    vs_out.FragPosLightSpace = lightSpaceMatrix * pos4;
+    vs_out.lightPos = light.position;
+    vs_out.FragPos = vec3(ModelView * pos4);
+    vs_out.Normal = NormalMatrix * normal;
 	
 	gl_Position = Perspective * ModelView * pos4;
 }

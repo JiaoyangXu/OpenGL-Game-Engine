@@ -14,6 +14,7 @@ using namespace std;
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtx/io.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/ext.hpp>
 
 #define STB_IMAGE_IMPLEMENTATION
 
@@ -23,6 +24,8 @@ using namespace glm;
 static bool show_gui = true;
 
 const size_t CIRCLE_PTS = 48;
+const unsigned int SHADOW_WIDTH = 512, SHADOW_HEIGHT = 512;
+
 
 //----------------------------------------------------------------------------------------
 // Constructor
@@ -31,6 +34,7 @@ A3::A3(const std::string & luaSceneFile)
 	  m_positionAttribLocation(0),
 	  m_normalAttribLocation(0),
 	  m_uvAttribLocation(0),
+	  m_shadow_positionAttribLocation(0),
 	  m_vao_meshData(0),
 	  m_vbo_vertexPositions(0),
 	  m_vbo_vertexNormals(0),
@@ -47,7 +51,13 @@ A3::A3(const std::string & luaSceneFile)
       circle(false),
       backface(false),
       frontface(false),
-      z_buffer(true)
+      z_buffer(true),
+	m_shadow(shadow_shader),
+	depthMapFBO(0),
+	shadowMap_id(0),
+	texture_id(0),
+	lightSpaceMatrix(0),
+	planeVAO(0)
 {
 }
 
@@ -56,14 +66,58 @@ A3::A3(const std::string & luaSceneFile)
 A3::~A3()
 {
 
+} 
+
+void A3::initFloor(){
+
+    // set up vertex data (and buffer(s)) and configure vertex attributes
+    // ------------------------------------------------------------------
+    float planeVertices[] = {
+        // positions            // normals         // texcoords
+         25.0f, -0.5f,  25.0f,  0.0f, 1.0f, 0.0f,  25.0f,  0.0f,
+        -25.0f, -0.5f,  25.0f,  0.0f, 1.0f, 0.0f,   0.0f,  0.0f,
+        -25.0f, -0.5f, -25.0f,  0.0f, 1.0f, 0.0f,   0.0f, 25.0f,
+
+         25.0f, -0.5f,  25.0f,  0.0f, 1.0f, 0.0f,  25.0f,  0.0f,
+        -25.0f, -0.5f, -25.0f,  0.0f, 1.0f, 0.0f,   0.0f, 25.0f,
+         25.0f, -0.5f, -25.0f,  0.0f, 1.0f, 0.0f,  25.0f, 25.0f
+    };
+    // plane VAO
+    unsigned int planeVBO;
+    glGenVertexArrays(1, &planeVAO);
+    glGenBuffers(1, &planeVBO);
+    glBindVertexArray(planeVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, planeVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(planeVertices), planeVertices, GL_STATIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(6 * sizeof(float)));
+    glBindVertexArray(0);
 }
+
+
+static void updateShaderUniforms(const ShaderProgram & shader) {
+	shader.enable();
+	{
+		GLint location = shader.getUniformLocation("ourTexture");
+		glUniform1i(location, 0);
+		CHECK_GL_ERRORS;
+
+		location = shader.getUniformLocation("shadowMap");
+		glUniform1i(location,1);
+		CHECK_GL_ERRORS;
+	}
+	shader.disable();
+}
+
 
 void A3::uploadTexture()
 {
-
-	unsigned int texture;
-	glGenTextures(1, &texture);	
-	glBindTexture(GL_TEXTURE_2D, texture);
+	glGenTextures(1, &texture_id);	
+	glBindTexture(GL_TEXTURE_2D, texture_id);
 	// set the texture wrapping/filtering options (on the currently bound texture object)
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);	
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
@@ -84,6 +138,73 @@ void A3::uploadTexture()
 	stbi_image_free(data);
 }
 
+
+void A3::initShadowMap()
+{
+	glGenFramebuffers(1, &depthMapFBO);
+
+
+	glGenTextures(1, &shadowMap_id);
+	glBindTexture(GL_TEXTURE_2D, shadowMap_id);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, 
+             SHADOW_WIDTH, SHADOW_HEIGHT, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT); 
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);  
+
+
+	glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, shadowMap_id, 0);
+	glDrawBuffer(GL_NONE);
+	glReadBuffer(GL_NONE);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);  
+
+	
+	//unsigned int depthMapFBO = m_shadow.initShadowMap();
+	//glm::mat4 lightSpaceMatrix = m_shadow.initLightSpaceMatrix();
+}
+
+void A3::constructShadowMap() {
+	float near_plane = 1.0f, far_plane = 7.5f;
+	glm::mat4 lightProjection = glm::ortho(-10.0f, 10.0f, -10.0f, 10.0f, near_plane, far_plane);
+	glm::mat4 lightView = glm::lookAt(m_light.position, 
+                                  glm::vec3( 0.0f, 0.0f,  0.0f), 
+                                  glm::vec3( 0.0f, 1.0f,  0.0f)); 
+	lightSpaceMatrix = lightProjection * lightView; 
+
+
+	shadow_shader.enable();
+	{
+		GLint location = shadow_shader.getUniformLocation("lightSpaceMatrix");
+        	glUniformMatrix4fv(location, 1, GL_FALSE, value_ptr(lightSpaceMatrix));
+        	CHECK_GL_ERRORS;
+	
+
+	glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
+
+	glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
+    		glClear(GL_DEPTH_BUFFER_BIT);
+    		//ConfigureShaderAndMatrices();
+		//draw();
+		renderSceneGraph(*m_rootNode, shadow_shader, true);
+
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+      glViewport(0, 0, m_windowWidth, m_windowHeight);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	}
+	shadow_shader.disable();
+}
+
+void A3::ConfigureShaderAndMatrices() {
+	float near_plane = 1.0f, far_plane = 7.5f;
+	glm::mat4 lightProjection = glm::ortho(-10.0f, 10.0f, -10.0f, 10.0f, near_plane, far_plane);
+	glm::mat4 lightView = glm::lookAt(glm::vec3(-2.0f, 4.0f, -1.0f), 
+                                  glm::vec3( 0.0f, 0.0f,  0.0f), 
+                                  glm::vec3( 0.0f, 1.0f,  0.0f)); 
+	 lightSpaceMatrix = lightProjection * lightView; 
+}
+
 //----------------------------------------------------------------------------------------
 /*
  * Called once, at program start.
@@ -91,25 +212,27 @@ void A3::uploadTexture()
 void A3::init()
 {
 	// Set the background colour.
-	glClearColor(0.0, 1.0, 0.0, 1.0);
+	glClearColor(0.85, 0.85, 0.85, 1.0);
 
 	createShaderProgram();
-	uploadTexture();
+
+
+	
 
 	glGenVertexArrays(1, &m_vao_arcCircle);
 	glGenVertexArrays(1, &m_vao_meshData);
 	enableVertexShaderInputSlots();
 
 	processLuaSceneFile(m_luaSceneFile);
+	
 
 	// Load and decode all .obj files at once here.  You may add additional .obj files to
 	// this list in order to support rendering additional mesh types.  All vertex
 	// positions, and normals will be extracted and stored within the MeshConsolidator
 	// class.
 	unique_ptr<MeshConsolidator> meshConsolidator (new MeshConsolidator{
-			getAssetFilePath("cube.obj"),
-			getAssetFilePath("sphere.obj"),
-			getAssetFilePath("suzanne.obj")
+			getAssetFilePath("Scene/cube.obj"),
+			getAssetFilePath("Scene/uv_sphere.obj"),
 	});
 
 	// Acquire the BatchInfoMap from the MeshConsolidator.
@@ -125,6 +248,17 @@ void A3::init()
 	initViewMatrix();
 
 	initLightSources();
+
+	initFloor();
+
+	uploadTexture();
+
+	initShadowMap();
+
+	updateShaderUniforms(m_shader);
+
+
+
 
 	// Exiting the current scope calls delete automatically on meshConsolidator freeing
 	// all vertex data resources.  This is fine since we already copied this data to
@@ -152,14 +286,24 @@ void A3::processLuaSceneFile(const std::string & filename) {
 void A3::createShaderProgram()
 {
 	m_shader.generateProgramObject();
-	m_shader.attachVertexShader( getAssetFilePath("VertexShader.vs").c_str() );
-	m_shader.attachFragmentShader( getAssetFilePath("FragmentShader.fs").c_str() );
+	m_shader.attachVertexShader( getAssetFilePath("shader/vertex.vs").c_str() );
+	m_shader.attachFragmentShader( getAssetFilePath("shader/fragment.fs").c_str() );
 	m_shader.link();
+
+	shadow_shader.generateProgramObject();
+	shadow_shader.attachVertexShader( getAssetFilePath("shader/shadow_vertex.vs").c_str() );
+	shadow_shader.attachFragmentShader( getAssetFilePath("shader/shadow_fragment.fs").c_str() );
+	shadow_shader.link();
 
 	m_shader_arcCircle.generateProgramObject();
 	m_shader_arcCircle.attachVertexShader( getAssetFilePath("arc_VertexShader.vs").c_str() );
 	m_shader_arcCircle.attachFragmentShader( getAssetFilePath("arc_FragmentShader.fs").c_str() );
 	m_shader_arcCircle.link();
+
+	debugDepthQuad_shader.generateProgramObject();
+	debugDepthQuad_shader.attachVertexShader( getAssetFilePath("shader/debug_quad.vs").c_str() );
+	debugDepthQuad_shader.attachFragmentShader( getAssetFilePath("shader/debug_quad_depth.fs").c_str() );
+	debugDepthQuad_shader.link();
 }
 
 //----------------------------------------------------------------------------------------
@@ -169,17 +313,20 @@ void A3::enableVertexShaderInputSlots()
 	{
 		glBindVertexArray(m_vao_meshData);
 
+		m_shadow_positionAttribLocation = shadow_shader.getAttribLocation("position");
+		glEnableVertexAttribArray(m_shadow_positionAttribLocation);
+
 		// Enable the vertex shader attribute location for "position" when rendering.
 		m_positionAttribLocation = m_shader.getAttribLocation("position");
-		glEnableVertexAttribArray(m_positionAttribLocation);
+		glEnableVertexAttribArray(m_positionAttribLocation); 
 
 		// Enable the vertex shader attribute location for "normal" when rendering.
 		m_normalAttribLocation = m_shader.getAttribLocation("normal");
 		glEnableVertexAttribArray(m_normalAttribLocation);
 
-		// Enable the vextex shader attribute location for "uv" when rendering 
-		// m_uvAttribLocation = m_shader.getAttribLocation("uv");
-		// glEnableVertexAttribArray(m_uvAttribLocation);
+		//Enable the vextex shader attribute location for "uv" when rendering 
+		m_uvAttribLocation = m_shader.getAttribLocation("uv");
+		glEnableVertexAttribArray(m_uvAttribLocation);
 
 		CHECK_GL_ERRORS;
 	}
@@ -272,15 +419,18 @@ void A3::mapVboDataToVertexShaderInputLocations()
 	glBindBuffer(GL_ARRAY_BUFFER, m_vbo_vertexPositions);
 	glVertexAttribPointer(m_positionAttribLocation, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
 
+	glBindBuffer(GL_ARRAY_BUFFER, m_vbo_vertexPositions);
+	glVertexAttribPointer(m_shadow_positionAttribLocation, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
+
 	// Tell GL how to map data from the vertex buffer "m_vbo_vertexNormals" into the
 	// "normal" vertex attribute location for any bound vertex shader program.
 	glBindBuffer(GL_ARRAY_BUFFER, m_vbo_vertexNormals);
 	glVertexAttribPointer(m_normalAttribLocation, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
 
-	// Tell GL how to map data from the vertex buffer "m_vbo_vertexUvs" into the
+	//Tell GL how to map data from the vertex buffer "m_vbo_vertexUvs" into the
 	// "uv" vertex attribute location for any bound vertex shader program.
-	// glBindBuffer(GL_ARRAY_BUFFER, m_vbo_vertexUvs);
-	// glVertexAttribPointer(m_uvAttribLocation, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
+	glBindBuffer(GL_ARRAY_BUFFER, m_vbo_vertexUvs);
+	glVertexAttribPointer(m_uvAttribLocation, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
 
 	//-- Unbind target, and restore default values:
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -320,7 +470,9 @@ void A3::initViewMatrix() {
 //----------------------------------------------------------------------------------------
 void A3::initLightSources() {
 	// World-space position
-	m_light.position = vec3(10.0f, 10.0f, 10.0f);
+	// m_light.position = vec3(10.0f, 10.0f, 10.0f);
+	m_light.position = vec3(-2.0f, 4.0f, -1.0f);
+
 	m_light.rgbIntensity = vec3(1.0f); // light
 }
 
@@ -452,30 +604,41 @@ void A3::guiLogic()
 static void updateShaderUniforms(
 		const ShaderProgram & shader,
 		const GeometryNode & node,
-		const glm::mat4 & viewMatrix
+		const glm::mat4 & viewMatrix,
+		bool is_shadow
 ) {
 
 	shader.enable();
 	{
-		//-- Set ModelView matrix:
-		GLint location = shader.getUniformLocation("ModelView");
-		mat4 modelView = viewMatrix * node.trans;
-		glUniformMatrix4fv(location, 1, GL_FALSE, value_ptr(modelView));
+	// 	//-- Set ModelView matrix:
+	// 	GLint location = shader.getUniformLocation("ModelView");
+	// 	mat4 modelView = viewMatrix * node.trans;
+	// 	glUniformMatrix4fv(location, 1, GL_FALSE, value_ptr(modelView));
+	// 	CHECK_GL_ERRORS;
+	// if (!is_shadow) {
+	// 	//-- Set NormMatrix:
+	// 	location = shader.getUniformLocation("NormalMatrix");
+	// 	mat3 normalMatrix = glm::transpose(glm::inverse(mat3(modelView)));
+	// 	glUniformMatrix3fv(location, 1, GL_FALSE, value_ptr(normalMatrix));
+	// 	CHECK_GL_ERRORS;
+
+
+	// 	//-- Set Material values:
+	// 	location = shader.getUniformLocation("material.kd");
+	// 	vec3 kd = node.material.kd;
+	// 	glUniform3fv(location, 1, value_ptr(kd));
+	// 	CHECK_GL_ERRORS;
+		GLint location = shader.getUniformLocation("ourTexture");
+		glUniform1i(location, 0);
 		CHECK_GL_ERRORS;
 
-		//-- Set NormMatrix:
-		location = shader.getUniformLocation("NormalMatrix");
-		mat3 normalMatrix = glm::transpose(glm::inverse(mat3(modelView)));
-		glUniformMatrix3fv(location, 1, GL_FALSE, value_ptr(normalMatrix));
-		CHECK_GL_ERRORS;
-
-
-		//-- Set Material values:
-		location = shader.getUniformLocation("material.kd");
-		vec3 kd = node.material.kd;
-		glUniform3fv(location, 1, value_ptr(kd));
+		location = shader.getUniformLocation("shadowMap");
+		glUniform1i(location,1);
 		CHECK_GL_ERRORS;
 	}
+
+		
+	
 	shader.disable();
 
 }
@@ -499,10 +662,20 @@ void A3::draw() {
         glCullFace(GL_BACK);
     }
 
+	
+	//initShadowMap();
+	// 	glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
+    	// 	glClear(GL_DEPTH_BUFFER_BIT);
+    	// 	//ConfigureShaderAndMatrices();
+	// 	//draw();
+	// 	renderSceneGraph(*m_rootNode, shadow_shader, true);
 
-	renderSceneGraph(*m_rootNode);
+	// glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-    if (z_buffer) {
+	constructShadowMap();
+	renderSceneGraph(*m_rootNode, m_shader , false);
+
+    if (z_buffer) { 
         glDisable( GL_DEPTH_TEST );
     }
     if (frontface || backface) {
@@ -514,10 +687,12 @@ void A3::draw() {
 }
 
 //----------------------------------------------------------------------------------------
-void A3::renderSceneGraph(const SceneNode & root) {
+void A3::renderSceneGraph(const SceneNode & root, const ShaderProgram& shader, bool is_shadow) {
+
+
+
 
 	// Bind the VAO once here, and reuse for all GeometryNode rendering below.
-	glBindVertexArray(m_vao_meshData);
 
 	// This is emphatically *not* how you should be drawing the scene graph in
 	// your final implementation.  This is a non-hierarchical demonstration
@@ -531,6 +706,12 @@ void A3::renderSceneGraph(const SceneNode & root) {
 	// subclasses, that renders the subtree rooted at every node.  Or you
 	// could put a set of mutually recursive functions in this class, which
 	// walk down the tree from nodes of different types.
+	m_shader.enable();
+	{
+		GLint location = m_shader.getUniformLocation("lightSpaceMatrix");
+        	glUniformMatrix4fv(location, 1, GL_FALSE, value_ptr(lightSpaceMatrix));
+        	CHECK_GL_ERRORS;
+	}
 
     glm::mat4 prev_trans = m_rootNode->trans;
 
@@ -538,7 +719,17 @@ void A3::renderSceneGraph(const SceneNode & root) {
 
     std::vector<glm::mat4> stack;
 
-    m_rootNode->render(m_shader, m_batchInfoMap, m_view, stack);
+    	glActiveTexture(GL_TEXTURE0);
+      glBindTexture(GL_TEXTURE_2D, texture_id);
+      glActiveTexture(GL_TEXTURE1);
+      glBindTexture(GL_TEXTURE_2D, shadowMap_id);
+    
+
+    glBindVertexArray(planeVAO);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+
+	glBindVertexArray(m_vao_meshData);
+    m_rootNode->render(shader, m_batchInfoMap, m_view, stack, is_shadow);
 
     m_rootNode->set_transform(prev_trans);
 
@@ -808,7 +999,5 @@ bool A3::keyInputEvent (
 			eventHandled = true;
 		}
 	}
-	// Fill in with event handling code...
-
 	return eventHandled;
 }
