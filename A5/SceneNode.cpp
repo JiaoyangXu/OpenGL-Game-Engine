@@ -118,6 +118,17 @@ int SceneNode::totalSceneNodes() const {
 	return nodeInstanceCount;
 }
 
+void SceneNode::configure_AABB(const char * objFilePath) {
+	MeshId meshId;
+	vector<vec3> positions;
+	vector<vec3> normals;
+	vector<vec2> uvs;
+	BatchInfo batchInfo;
+
+	ObjFileDecoder::decode(objFilePath, meshId, positions, normals, uvs);
+	m_AABB = new AABB(positions);
+}
+
 
 void SceneNode::render(const ShaderProgram & shader,
             BatchInfoMap & batchInfoMap,

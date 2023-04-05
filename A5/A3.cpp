@@ -63,7 +63,10 @@ A3::A3(const std::string & luaSceneFile)
 	lightSpaceMatrix(0),
 	planeVAO(0),
 	m_animation(0.3, 1),
-	prev_time(0)
+	prev_time(0),
+	collision(false),
+	start_beep(false),
+	beep_duration(0)
 {
 }
 
@@ -211,6 +214,12 @@ void A3::ConfigureShaderAndMatrices() {
 	 lightSpaceMatrix = lightProjection * lightView; 
 }
 
+void A3::initAABB() {
+	m_rootNode->configure_AABB("Assets/Scene/balloon.obj");
+	m_ballNode->configure_AABB("Assets/Scene/uv_sphere.obj");
+	m_rootNode->m_AABB->force_translate(vec3(-1.64, -1.76,0.0));
+}
+
 //----------------------------------------------------------------------------------------
 /*
  * Called once, at program start.
@@ -222,7 +231,7 @@ void A3::init()
 
 	createShaderProgram();
 
-	ISoundEngine *SoundEngine = createIrrKlangDevice();
+	SoundEngine = createIrrKlangDevice();
 	SoundEngine->play2D("Assets/Audio/breakout.mp3", true);
 
 	
@@ -261,6 +270,8 @@ void A3::init()
 	initLightSources();
 
 	initFloor();
+
+	initAABB();
 
 	uploadTexture();
 
@@ -602,8 +613,10 @@ void A3::guiLogic()
         }
 
 		// Add more gui elements here here ...
-        ImGui::RadioButton("Position/Orientation     (P)", (int*) &interactionMode, position);
-        ImGui::RadioButton("Joint   (J)", (int*) &interactionMode, joint);
+        ImGui::RadioButton("Position/Orientation     ", (int*) &interactionMode, position);
+        //ImGui::RadioButton("Joint   (J)", (int*) &interactionMode, joint);
+	  ImGui::RadioButton("Idle   ", (int*) &interactionMode, idle);
+
 
 
 		ImGui::Text( "Framerate: %.1f FPS", ImGui::GetIO().Framerate );
@@ -655,6 +668,10 @@ static void updateShaderUniforms(
 
 }
 
+void A3::reset_ball() {
+	m_ballNode->translate(vec3(0, 0, -20));
+}
+
 //----------------------------------------------------------------------------------------
 /*
  * Called once per frame, after guiLogic().
@@ -680,6 +697,10 @@ void A3::draw() {
 
 	float change_in_z = m_animation.interpolated_transform(change_in_time);
 	m_ballNode->translate(glm::vec3(0.0, 0.0, change_in_z));
+
+	if (interactionMode == idle) {
+		m_rootNode->translate(glm::vec3(0.0, 0.0, -change_in_z));
+	}
 
 	//std::cout << "current frame is " << currentFrame << std::endl;
 	
@@ -736,6 +757,40 @@ void A3::renderSceneGraph(const SceneNode & root, const ShaderProgram& shader, b
     glm::mat4 prev_trans = m_rootNode->trans;
 
     m_rootNode->trans = model_translation * m_rootNode->trans;
+
+//     std::cout << "root position is " << to_string( m_rootNode->trans) << std::endl;
+
+//     std::cout << "ball position is " << to_string(m_ballNode->trans) << std::endl;
+	m_rootNode->m_AABB->translate( vec3(m_rootNode->trans[3].x,m_rootNode->trans[3].y, m_rootNode->trans[3].z ));
+
+	std::cout << glm::abs((-20 - m_rootNode->trans[3].z)- (-4 - m_ballNode->trans[3].z) ) << std::endl;
+
+	if (glm::abs((-20 - m_rootNode->trans[3].z)- (-4 - m_ballNode->trans[3].z) ) < 0.4) {
+	     std::cout << "root position is " << to_string( m_rootNode->trans[3]) << std::endl;
+
+	     std::cout << "ball position is " << to_string(m_ballNode->trans[3]) << std::endl;
+
+	     if (m_rootNode->m_AABB->check_collision(m_ballNode->m_AABB)) {
+			SoundEngine->play2D("Assets/Audio/bleep.mp3", true);
+			collision = true;
+			start_beep = true;
+	     }
+	} 
+
+	if (start_beep) {
+		beep_duration ++;
+	}
+	if (beep_duration >= 3) {
+		SoundEngine->stopAllSounds();
+		SoundEngine->play2D("Assets/Audio/breakout.mp3", true);
+		start_beep = false;
+		beep_duration = 0;
+	}
+
+	if (collision || m_ballNode->trans[3].z > 20) {
+		reset_ball();
+		collision = false;
+	}
 
     	std::vector<glm::mat4> stack;
       std::vector<glm::mat4> ball_stack;

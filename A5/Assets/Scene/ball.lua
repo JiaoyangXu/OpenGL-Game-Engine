@@ -10,8 +10,8 @@ rootNode = gr.node('root')
 
 -- Create a GeometryNode with MeshId = 'sphere', and name = 'head'.
 sphereMesh = gr.mesh('Sphere', 'name-of-sphere')
-sphereMesh:scale(2.0, 2.0, 2.0)
-sphereMesh:translate(0.0, 0.2, -30.0)
+sphereMesh:scale(1.0, 1.0, 1.0)
+sphereMesh:translate(0.0, 0.0, -20.0)
 sphereMesh:set_material(gr.material({0.4, 0.8, 0.4}, {0.8, 0.8, 0.8}, 50.0))
 
 -- Add the sphereMesh GeometryNode to the child list of rootnode.

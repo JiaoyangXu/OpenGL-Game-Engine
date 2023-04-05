@@ -8,8 +8,8 @@ rootNode = gr.node('root')
 
 cubeMesh2 = gr.mesh('11088_balloon_v3', 'my_cube')
 cubeMesh2:scale(1.0, 1.0, 1.0)
-cubeMesh2:rotate('y', 45.0)
-cubeMesh2:translate(-0.8, -1.0, -2.0)
+cubeMesh2:translate(-1.64, -1.76, -4.0)
+-- cubeMesh2:translate(0.0, 0.0, -4.0)
 cubeMesh2:set_material(gr.material({0.8, 0.2, 0.2}, {0.8, 0.8, 0.8}, 10.0))
 
 

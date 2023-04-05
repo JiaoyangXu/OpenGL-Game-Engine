@@ -7,6 +7,7 @@
 #include "cs488-framework/OpenGLImport.hpp"
 #include "cs488-framework/ShaderProgram.hpp"
 #include "cs488-framework/MeshConsolidator.hpp"
+#include "cs488-framework/ObjFileDecoder.hpp"
 
 #include <glm/glm.hpp>
 
@@ -14,6 +15,7 @@
 #include <string>
 #include <iostream>
 #include <vector>
+#include "AABB.hpp"
 
 enum class NodeType {
 	SceneNode,
@@ -45,6 +47,8 @@ public:
     void scale(const glm::vec3& amount);
     void translate(const glm::vec3& amount);
 
+    void configure_AABB(const char * objFilePath);
+
     virtual void render(const ShaderProgram & shader,
                 BatchInfoMap & batchInfoMap,
                 const glm::mat4 & viewMatrix,
@@ -67,6 +71,7 @@ public:
 	NodeType m_nodeType;
 	std::string m_name;
 	unsigned int m_nodeId;
+    AABB* m_AABB;
 
     SceneNode* parent;
 

@@ -13,6 +13,9 @@
 #include "Shadow.hpp"
 #include "Animation.hpp"
 
+#include "irrKlang/irrKlang.h"
+using namespace irrklang;
+
 #include <glm/glm.hpp>
 #include <memory>
 #include <set>
@@ -45,7 +48,7 @@ public:
     bool backface;
     bool frontface;
 
-    enum InteractionMode {position, joint};
+    enum InteractionMode {position, joint, idle};
     InteractionMode interactionMode;
 
     std::set<SceneNode*> selected_joints;
@@ -86,6 +89,7 @@ protected:
 	void constructShadowMap();
 
 	void initFloor();
+	void initAABB();
 
     // picking
     void start_picking();
@@ -96,6 +100,7 @@ protected:
     void reset_orientation();
     void reset_joints();
     void reset_all();
+    void reset_ball();
 
 	glm::mat4 m_perpsective;
 	glm::mat4 m_view;
@@ -148,6 +153,12 @@ protected:
 
 	Animation m_animation;
 	
+	ISoundEngine *SoundEngine;
+
+	bool collision;
+	bool start_beep;
+	unsigned int beep_duration;
+
 
 
     // picking
