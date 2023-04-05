@@ -223,6 +223,7 @@ void A3::init()
 	createShaderProgram();
 
 	ISoundEngine *SoundEngine = createIrrKlangDevice();
+	SoundEngine->play2D("Assets/Audio/breakout.mp3", true);
 
 	
 
