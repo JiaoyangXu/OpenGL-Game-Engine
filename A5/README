@@ -1,0 +1,15 @@
+I ran this program on CS488 VM
+
+I modified files under shared/cs488-framework
+
+Instruction to run:
+
+premake4 gmake
+make
+
+cd A5
+premake4 gmake
+make
+./A5 Assets/Scene/cube.lua
+
+export LD_LIBRARY_PATH=/home/cs488/Desktop/project/OpenGL-Game-Engine/lib

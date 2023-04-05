@@ -96,3 +96,16 @@ solution "BuildStaticLibs"
         files { 
             "shared/lodepng/lodepng.cpp"
         }
+
+            -- Build lodepng static library
+    project "irrKlang"
+    kind "StaticLib"
+    language "C++"
+    location "build"
+    objdir "build"
+    targetdir "lib"
+    includedirs (includeDirList)
+    links {
+        "shared/libIrrKlang.so",
+        "shared/ikpMP3.dll"
+    }
